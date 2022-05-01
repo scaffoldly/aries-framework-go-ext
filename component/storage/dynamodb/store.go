@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	dbexpr "github.com/aws/aws-sdk-go/service/dynamodb/expression"
 	spi "github.com/hyperledger/aries-framework-go/spi/storage"
 )
@@ -39,14 +40,14 @@ var (
 	errIteratorExhausted = errors.New("iterator is exhausted")
 )
 
-// Provider represents an in-memory implementation of the spi.Provider interface.
+// Provider represents a DynamoDB implementation of the spi.Provider interface.
 type Provider struct {
-	client *dynamodb.DynamoDB
+	client dynamodbiface.DynamoDBAPI
 	tables map[string]*dynamodbTable
 	lock   sync.RWMutex
 }
 
-// NewProvider instantiates a new in-memory storage Provider.
+// NewProvider instantiates a new DynamoDB storage Provider.
 func NewProvider() *Provider {
 	// Initialize a session that the SDK will use to load
 	// credentials from the shared credentials file ~/.aws/credentials
@@ -68,7 +69,7 @@ func NewProvider() *Provider {
 	}))
 
 	// Create DynamoDB client
-	client := dynamodb.New(sess)
+	client := dynamodbiface.DynamoDBAPI(dynamodb.New(sess))
 	if client == nil {
 		return nil
 	}
@@ -188,7 +189,7 @@ type dbEntry struct {
 
 type dynamodbTable struct {
 	name   string
-	client *dynamodb.DynamoDB
+	client dynamodbiface.DynamoDBAPI
 	config spi.StoreConfiguration
 }
 
@@ -541,12 +542,12 @@ func checkForUnsupportedQueryOptions(options []spi.QueryOption) error {
 	querySettings := getQueryOptions(options)
 
 	if querySettings.InitialPageNum != 0 {
-		return errors.New("in-memory provider does not currently support " +
+		return errors.New("DynamoDB provider does not currently support " +
 			"setting the initial page number of query results")
 	}
 
 	if querySettings.SortOptions != nil {
-		return errors.New("in-memory provider does not currently support custom sort options for query results")
+		return errors.New("DynamoDB provider does not currently support custom sort options for query results")
 	}
 
 	return nil
