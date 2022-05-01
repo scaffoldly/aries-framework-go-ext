@@ -8,6 +8,7 @@ go 1.17
 
 require (
 	github.com/aws/aws-sdk-go v1.44.4
+	github.com/gusaul/go-dynamock v0.0.0-20210107061312-3e989056e1e6
 	github.com/hyperledger/aries-framework-go/spi v0.0.0-20220428211718-66cc046674a1
 )
 

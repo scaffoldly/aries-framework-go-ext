@@ -47,37 +47,54 @@ type Provider struct {
 	lock   sync.RWMutex
 }
 
-// NewProvider instantiates a new DynamoDB storage Provider.
-func NewProvider() *Provider {
-	// Initialize a session that the SDK will use to load
-	// credentials from the shared credentials file ~/.aws/credentials
-	// and region from the shared configuration file ~/.aws/config.
-	stage := os.Getenv("STAGE")
-	config := aws.Config{}
+// Option represents an option for a DynamoDB Provider.
+type Option func(opts *Provider)
 
-	if stage == "local" {
-		endpoint := "http://host.docker.internal:8100"
-		config = aws.Config{
-			Endpoint:    &endpoint,
-			Credentials: credentials.NewStaticCredentials("DEFAULT_ACCESS_KEY", "DEFAULT_SECRET", ""),
+// WithDBAPI is an option for inserting a custom DBAPI.
+func WithMockDBAPI(dbapi dynamodbiface.DynamoDBAPI) Option {
+	return func(opts *Provider) {
+		opts.client = dbapi
+	}
+}
+
+// NewProvider instantiates a new DynamoDB storage Provider.
+func NewProvider(opts ...Option) (*Provider, error) {
+	p := &Provider{
+		tables: make(map[string]*dynamodbTable),
+	}
+
+	for _, opt := range opts {
+		opt(p)
+	}
+
+	if p.client == nil {
+		// Initialize a session that the SDK will use to load
+		// credentials from the shared credentials file ~/.aws/credentials
+		// and region from the shared configuration file ~/.aws/config.
+		stage := os.Getenv("STAGE")
+		config := aws.Config{}
+
+		if stage == "local" {
+			endpoint := "http://host.docker.internal:8100"
+			config = aws.Config{
+				Endpoint:    &endpoint,
+				Credentials: credentials.NewStaticCredentials("DEFAULT_ACCESS_KEY", "DEFAULT_SECRET", ""),
+			}
+		}
+
+		sess := session.Must(session.NewSessionWithOptions(session.Options{
+			Config:            config,
+			SharedConfigState: session.SharedConfigEnable,
+		}))
+
+		// Create DynamoDB client
+		p.client = dynamodbiface.DynamoDBAPI(dynamodb.New(sess))
+		if p.client == nil {
+			return nil, nil
 		}
 	}
 
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		Config:            config,
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-
-	// Create DynamoDB client
-	client := dynamodbiface.DynamoDBAPI(dynamodb.New(sess))
-	if client == nil {
-		return nil
-	}
-
-	return &Provider{
-		client: client,
-		tables: make(map[string]*dynamodbTable),
-	}
+	return p, nil
 }
 
 // OpenStore opens a store with the given name and returns a handle.
